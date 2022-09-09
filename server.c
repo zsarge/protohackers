@@ -15,9 +15,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define PORT "3490"		// the port users will be connecting to
-#define MAXDATASIZE 100 // max number of bytes we can get at once
-#define BACKLOG 10		// how many pending connections queue will hold
+#define PORT "3490"		 // the port users will be connecting to
+#define MAXDATASIZE 1024 // max number of bytes we can get at once
+#define BACKLOG 10		 // how many pending connections queue will hold
 
 void sigchld_handler(int s)
 {
@@ -41,6 +41,11 @@ void* get_in_addr(struct sockaddr* sa)
 
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
+
+// TODO: Handle multiple connections at a time?
+// TODO: Deploy to AWS to see if this works
+// TODO: clean up code into smaller functions
+// TODO: Be able to start multiple servers for different ports
 
 int main(void)
 {
@@ -128,21 +133,27 @@ int main(void)
 		if (!fork()) {	   // this is the child process
 			close(sockfd); // child doesn't need the listener
 
-			// recieve code
-			if ((numbytes = recv(new_fd, buf, MAXDATASIZE - 1, 0)) == -1) {
-				perror("recv");
-				exit(1);
-			}
-			buf[numbytes] = '\0';
-			printf("server: received '%s'\n", buf);
-			// recieve code
+			while (1) { // recieve packets from client until the connection is closed
+				numbytes = recv(new_fd, buf, MAXDATASIZE - 1, 0);
 
-			if (send(new_fd, buf, numbytes, 0) == -1)
-				perror("send");
+				if (numbytes == -1) {
+					perror("recv");
+					exit(1);
+				} else if (numbytes == 0) {
+					break; // client has closed the connection
+				}
+
+				buf[numbytes] = '\0';
+				if (send(new_fd, buf, numbytes, 0) == -1)
+					perror("send");
+				printf("server: received '%s'\n", buf);
+			}
+
 			close(new_fd);
 			exit(0);
+		} else {
+			close(new_fd);
 		}
-		close(new_fd); // parent doesn't need this
 	}
 
 	return 0;
