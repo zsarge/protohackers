@@ -15,9 +15,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define PORT "3490" // the port users will be connecting to
-
-#define BACKLOG 10 // how many pending connections queue will hold
+#define PORT "3490"		// the port users will be connecting to
+#define MAXDATASIZE 100 // max number of bytes we can get at once
+#define BACKLOG 10		// how many pending connections queue will hold
 
 void sigchld_handler(int s)
 {
@@ -52,6 +52,8 @@ int main(void)
 	int yes = 1;
 	char s[INET6_ADDRSTRLEN];
 	int rv;
+	char buf[MAXDATASIZE];
+	int numbytes;
 
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_UNSPEC;
@@ -125,7 +127,17 @@ int main(void)
 
 		if (!fork()) {	   // this is the child process
 			close(sockfd); // child doesn't need the listener
-			if (send(new_fd, "Hello, world!\n", 13, 0) == -1)
+
+			// recieve code
+			if ((numbytes = recv(new_fd, buf, MAXDATASIZE - 1, 0)) == -1) {
+				perror("recv");
+				exit(1);
+			}
+			buf[numbytes] = '\0';
+			printf("server: received '%s'\n", buf);
+			// recieve code
+
+			if (send(new_fd, buf, numbytes, 0) == -1)
 				perror("send");
 			close(new_fd);
 			exit(0);
