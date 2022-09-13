@@ -15,9 +15,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define PORT "3490"		 // the port users will be connecting to
-#define MAXDATASIZE 1024 // max number of bytes we can get at once
-#define BACKLOG 10		 // how many pending connections queue will hold
+#define PORT "3490"		// the port users will be connecting to
+#define MAXDATASIZE 256 // max number of bytes we can get at once
+#define BACKLOG 10		// how many pending connections queue will hold
 
 void sigchld_handler(int s)
 {
@@ -128,6 +128,7 @@ int main(void)
 		inet_ntop(their_addr.ss_family,
 			get_in_addr((struct sockaddr*)&their_addr),
 			s, sizeof s);
+
 		printf("server: got connection from %s\n", s);
 
 		if (!fork()) {	   // this is the child process
@@ -143,9 +144,19 @@ int main(void)
 					break; // client has closed the connection
 				}
 
-				buf[numbytes] = '\0';
-				if (send(new_fd, buf, numbytes, 0) == -1)
+				buf[numbytes] = '\0'; // null terminate the buffer
+
+				int bytes_to_send = numbytes;
+				int send_res;
+
+				send_res = send(new_fd, buf, bytes_to_send, 0);
+				if (send_res == -1) {
 					perror("send");
+				} else if (send_res < bytes_to_send) {
+					fprintf(stderr, "could not send all bytes of message. sent %d/%d\n", send_res, bytes_to_send);
+					fprintf(stderr, "TODO: Handle unfinished send\n");
+				}
+
 				printf("server: received '%s'\n", buf);
 			}
 
